@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0b0f14">
+<title>Welding Simulator · Phone Controller</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
+html,body{margin:0;height:100%;background:#0b0f14;color:#e8eef5;font:15px/1.35 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden;overscroll-behavior:none;touch-action:none}
+button{font:inherit;color:inherit}
+.hidden{display:none!important}
+/* ---------- pairing ---------- */
+#pair{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:18px;background:radial-gradient(1200px 600px at 50% -10%,#1c2b3d,#0b0f14)}
+#pair .card{width:min(420px,100%);background:#121a24;border:1px solid #243346;border-radius:16px;padding:22px;box-shadow:0 20px 60px #000a}
+#pair h1{margin:0 0 4px;font-size:20px}
+#pair p{margin:4px 0 14px;color:#9db0c4;font-size:13.5px}
+#code{width:100%;font:700 34px/1.2 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.35em;text-align:center;text-transform:uppercase;padding:12px 6px 12px 16px;border-radius:12px;border:2px solid #2b3f57;background:#0b121a;color:#ffd58a;user-select:text;-webkit-user-select:text;touch-action:auto}
+#code:focus{outline:none;border-color:#ff9f1a}
+#go{width:100%;margin-top:12px;padding:14px;border:0;border-radius:12px;background:#ff8a00;color:#1a1000;font-weight:800;font-size:17px}
+#go:disabled{opacity:.5}
+#pmsg{min-height:20px;margin-top:10px;font-size:13px;color:#9db0c4}
+#pmsg.err{color:#ff8a8a}
+#pmsg.ok{color:#8fe3a0}
+.tiny{font-size:12px;color:#7a8da1;margin-top:12px}
+/* ---------- controller ---------- */
+#ctl{position:fixed;inset:0;background:#0b0f14}
+#pad{position:absolute;inset:0;touch-action:none;background:
+ linear-gradient(#ffffff08 1px,transparent 1px) 0 0/48px 48px,linear-gradient(90deg,#ffffff08 1px,transparent 1px) 0 0/48px 48px,#0e151d}
+#padhint{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);text-align:center;color:#6f8399;pointer-events:none;font-size:14px;transition:opacity .4s}
+#padhint b{display:block;font-size:17px;color:#9db0c4;margin-bottom:4px}
+.dot{position:absolute;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;border:2px solid #ffb347;background:#ffb34722;pointer-events:none}
+#top{position:absolute;left:0;right:0;top:0;display:flex;gap:6px;align-items:center;padding:calc(env(safe-area-inset-top) + 6px) calc(env(safe-area-inset-right) + 8px) 6px calc(env(safe-area-inset-left) + 8px);background:linear-gradient(#0b0f14,#0b0f14cc 70%,#0b0f1400);z-index:5}
+.chip:empty{display:none}.chip{display:inline-block;padding:3px 9px;border-radius:99px;background:#1a2634;border:1px solid #2b3f57;font-size:12.5px;white-space:nowrap}
+.chip.ok{background:#12351d;border-color:#2c7a43;color:#9af0b0}
+.chip.warn{background:#3b2c0e;border-color:#8a6a1c;color:#ffd58a}
+.chip.bad{background:#3d1414;border-color:#8a2c2c;color:#ffb0b0}
+#live{flex:1;min-width:0;display:flex;gap:6px;overflow:hidden;white-space:nowrap}
+#net{font-size:11.5px;color:#7a8da1;white-space:nowrap}
+#top button{background:#1a2634;border:1px solid #2b3f57;border-radius:10px;padding:7px 12px;font-weight:700;touch-action:manipulation}
+#toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 50px);transform:translateX(-50%);max-width:80%;padding:8px 14px;border-radius:10px;background:#1a2634ee;border:1px solid #2b3f57;font-size:13.5px;text-align:center;z-index:60;pointer-events:none;opacity:0;transition:opacity .25s}
+#toast.on{opacity:1}
+#toast.warn{border-color:#8a6a1c;color:#ffd58a}
+#toast.bad{border-color:#8a2c2c;color:#ffb0b0}
+#toast.ok{border-color:#2c7a43;color:#9af0b0}
+/* joystick */
+#joy{position:absolute;left:calc(env(safe-area-inset-left) + 22px);bottom:calc(env(safe-area-inset-bottom) + 92px);width:128px;height:128px;border-radius:50%;background:#16212d;border:2px solid #2b3f57;touch-action:none;z-index:4}
+#joy i{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;background:#33506f;border:2px solid #5f87b0}
+#joy small{position:absolute;left:0;right:0;top:-18px;text-align:center;color:#6f8399;font-size:11px}
+/* ARC */
+#arc{position:absolute;right:calc(env(safe-area-inset-right) + 22px);bottom:calc(env(safe-area-inset-bottom) + 92px);width:138px;height:138px;border-radius:50%;border:3px solid #ffb347;background:radial-gradient(circle at 50% 35%,#ff9a1f,#c75a00);color:#1a0d00;font-weight:900;font-size:20px;letter-spacing:.06em;touch-action:none;z-index:4;box-shadow:0 8px 28px #ff8a0044}
+#arc small{display:block;font-size:11px;font-weight:700;letter-spacing:0;opacity:.8}
+#arc.on{background:radial-gradient(circle at 50% 35%,#fff3c4,#ffb000);box-shadow:0 0 50px #ffcf5acc;transform:scale(.97)}
+/* bottom bar */
+#bar{position:absolute;left:0;right:0;bottom:0;display:flex;gap:6px;padding:8px calc(env(safe-area-inset-right) + 8px) calc(env(safe-area-inset-bottom) + 8px) calc(env(safe-area-inset-left) + 8px);background:linear-gradient(#0b0f1400,#0b0f14 40%);overflow-x:auto;z-index:5;touch-action:pan-x}
+.mb{flex:0 0 auto;min-width:62px;padding:8px 8px 6px;border-radius:12px;background:#1a2634;border:1px solid #2b3f57;text-align:center;font-size:11.5px;touch-action:manipulation}
+.mb b{display:block;font-size:20px;line-height:1.1;font-weight:400}
+.mb.on{background:#12351d;border-color:#2c7a43}
+.mb:active{background:#2a3f57}
+/* menu sheet */
+#menu{position:absolute;inset:0;background:#000a;z-index:9;display:flex;align-items:flex-end;justify-content:center;touch-action:none}
+#menu .sheet{width:min(560px,100%);max-height:88%;overflow-y:auto;background:#121a24;border:1px solid #243346;border-radius:18px 18px 0 0;padding:14px 14px calc(env(safe-area-inset-bottom) + 16px);touch-action:pan-y}
+#menu h3{margin:2px 0 10px;font-size:16px;display:flex;justify-content:space-between;align-items:center}
+#menu h4{margin:14px 0 6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#7a8da1}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
+.btn{padding:12px 8px;border-radius:12px;background:#1a2634;border:1px solid #2b3f57;font-weight:600;text-align:center;touch-action:manipulation}
+.btn:active,.btn.held{background:#2a4a6e}
+.row{display:flex;gap:8px;align-items:center;margin:6px 0}
+.row label{flex:1}
+.row input[type=range]{flex:1.4;accent-color:#ff9f1a}
+#x{background:#1a2634;border:1px solid #2b3f57;border-radius:10px;padding:6px 12px}
+/* reconnect overlay */
+#lost{position:fixed;inset:0;background:#0b0f14dd;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:20px}
+.spin{width:34px;height:34px;border-radius:50%;border:4px solid #2b3f57;border-top-color:#ff9f1a;animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+#rot{position:absolute;left:50%;bottom:150px;transform:translateX(-50%);font-size:12px;color:#6f8399;z-index:3;display:none;pointer-events:none}
+@media (orientation:portrait){#rot{display:block}#joy{bottom:calc(env(safe-area-inset-bottom) + 100px);width:108px;height:108px}#arc{width:116px;height:116px;bottom:calc(env(safe-area-inset-bottom) + 100px)}}
+@media (max-height:430px){#joy{bottom:calc(env(safe-area-inset-bottom) + 74px);width:104px;height:104px}#arc{bottom:calc(env(safe-area-inset-bottom) + 74px);width:110px;height:110px;font-size:17px}.mb{min-width:54px;padding:5px 6px 4px}.mb b{font-size:17px}#padhint{top:40%}}
+
+/* ---------- v2 screens: options, teacher, live view ---------- */
+.scr{position:fixed;inset:0;background:#0b0f14;display:flex;flex-direction:column}
+#opts{align-items:center;justify-content:center;padding:calc(env(safe-area-inset-top) + 14px) 16px 16px;gap:10px;background:radial-gradient(1200px 600px at 50% -10%,#1c2b3d,#0b0f14);overflow:auto;touch-action:pan-y}
+#opts h2{margin:0;font-size:19px}#opts .sub{margin:0 0 4px;color:#9db0c4;font-size:13px;text-align:center}
+.ocard{width:min(480px,100%);display:flex;gap:14px;align-items:center;padding:14px 16px;border-radius:16px;background:#121a24;border:1px solid #2b3f57;text-align:left;touch-action:manipulation}
+.ocard:active{background:#1a2b3d;border-color:#ff9f1a}
+.ocard i{font-style:normal;font-size:30px}.ocard b{display:block;font-size:16.5px}.ocard span{display:block;font-size:12.5px;color:#9db0c4;margin-top:2px}
+#oleave{background:none;border:0;color:#7a8da1;text-decoration:underline;padding:8px}
+.thead{display:flex;gap:6px;align-items:center;padding:calc(env(safe-area-inset-top) + 6px) calc(env(safe-area-inset-right) + 8px) 6px calc(env(safe-area-inset-left) + 8px);background:#0b0f14;z-index:5}
+.hb{background:#1a2634;border:1px solid #2b3f57;border-radius:10px;padding:7px 11px;font-weight:700;touch-action:manipulation;white-space:nowrap}
+.hb.on{background:#3b2c0e;border-color:#8a6a1c;color:#ffd58a}
+.tlive{flex:1;min-width:0;display:flex;gap:6px;overflow:hidden;white-space:nowrap}
+.lvWrap{position:relative;background:#000;aspect-ratio:16/9;max-height:34vh;margin:0 auto;width:100%;overflow:hidden;border-top:1px solid #243346;border-bottom:1px solid #243346}
+.lvWrap.sm{max-width:min(100%,56vh * 1.78)}
+.lvImg{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:none}
+.lvWait{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#6f8399;font-size:13px;text-align:center;padding:10px}
+.lvTog{position:absolute;right:6px;top:6px;z-index:2;padding:3px 9px;font-size:12px;background:#000a;border:1px solid #2b3f57;border-radius:8px}
+.ttabs{display:flex;background:#0f1620;border-bottom:1px solid #243346;overflow-x:auto;flex:0 0 auto;touch-action:pan-x}
+.ttabs button{flex:1 0 auto;padding:11px 14px;background:none;border:0;border-bottom:3px solid transparent;font-weight:800;font-size:13px;letter-spacing:.04em;color:#7a8da1;touch-action:manipulation}
+.ttabs button.on{color:#ffd58a;border-bottom-color:#ff9f1a}
+#tbody{flex:1;overflow-y:auto;padding:10px calc(env(safe-area-inset-right) + 10px) calc(env(safe-area-inset-bottom) + 18px) calc(env(safe-area-inset-left) + 10px);touch-action:pan-y}
+.tp{display:none}.tp.on{display:block}
+.tp h4{margin:12px 0 6px;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:#7a8da1}.tp h4:first-child{margin-top:2px}
+.tg{display:grid;grid-template-columns:repeat(auto-fill,minmax(98px,1fr));gap:7px}
+.tb{padding:11px 6px;border-radius:11px;background:#1a2634;border:1px solid #2b3f57;font-weight:650;font-size:13px;text-align:center;touch-action:manipulation}
+.tb:active{background:#2a4a6e}
+.tb.on{background:#12351d;border-color:#2c7a43;color:#c8f5d2}
+.tb.nx{border-color:#ff9f1a;box-shadow:0 0 0 1px #ff9f1a inset}
+.tb.go{background:#6b3a00;border-color:#ff9f1a;color:#fff1d6}
+.tb.dim{opacity:.45}
+.tb.ok{background:#12351d;border-color:#2c7a43}.tb.rp{background:#3b2c0e;border-color:#8a6a1c}.tb.nc{background:#3d1414;border-color:#8a2c2c}
+.arcb{touch-action:none}
+#arcT{width:100%;margin-top:8px;padding:16px;border-radius:14px;border:2px solid #ffb347;background:radial-gradient(circle at 50% 35%,#ff9a1f,#c75a00);color:#1a0d00;font-weight:900;font-size:18px;letter-spacing:.06em}
+#arcT.on,#arc2.on{background:radial-gradient(circle at 50% 35%,#fff3c4,#ffb000);box-shadow:0 0 40px #ffcf5acc}
+#gsteps{margin:0 0 8px;padding:0;list-style:none}
+#gsteps li{padding:9px 12px;border:1px solid #243346;border-radius:10px;margin-bottom:5px;background:#101822;color:#7a8da1;font-size:14px}
+#gsteps li.dn{color:#8fe3a0;border-color:#1d4a2b}#gsteps li.dn:before{content:"✓ "}
+#gsteps li.cur{background:#3b2c0e;border-color:#ff9f1a;color:#fff1d6;font-weight:700}
+#ghint{padding:11px 12px;border-radius:10px;background:#16212d;border:1px solid #2b3f57;font-size:14px;margin-bottom:8px}
+.req{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:10px;background:#3b2c0e;border:1px solid #8a6a1c;margin-bottom:6px}
+.req span{flex:1;font-size:14px}.req button{padding:9px 12px;border-radius:9px;border:1px solid #2b3f57;background:#1a2634;font-weight:700}
+.req button.y{background:#12351d;border-color:#2c7a43}
+.stn{width:100%;border-collapse:collapse;font-size:13px}.stn td,.stn th{padding:6px 5px;border-bottom:1px solid #1d2a38;text-align:left}.stn th{color:#7a8da1;font-weight:600;font-size:11.5px}
+.empty{color:#6f8399;font-size:13.5px;padding:6px 2px}
+#gPad{height:150px;border-radius:14px;background:linear-gradient(#ffffff08 1px,transparent 1px) 0 0/32px 32px,linear-gradient(90deg,#ffffff08 1px,transparent 1px) 0 0/32px 32px,#0e151d;border:2px dashed #2b3f57;display:flex;align-items:center;justify-content:center;color:#6f8399;font-size:13px;text-align:center;touch-action:none}
+#gPad.act{border-color:#ff9f1a}
+#gVals{white-space:pre;font:11.5px/1.4 ui-monospace,Menlo,monospace;color:#8aa0b6;margin-top:8px}
+.tp .row{margin:8px 0}.tp .row input[type=range]{flex:1.4;accent-color:#ff9f1a}
+#gMsg{min-height:18px;font-size:12.5px;color:#9db0c4;margin:6px 0}#gMsg.err{color:#ff8a8a}
+/* live view screen */
+#lvs{background:#000}
+#mrvid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;background:#000}
+#lvs.mr #mrvid{display:block}
+#lvbig{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:none;background:#000}
+#lvs.mr #lvbig{background:transparent;opacity:var(--mro,.85)}
+#lvs.mr.holo #lvbig{mix-blend-mode:screen}
+#lvwait{position:absolute;left:0;right:0;top:44%;text-align:center;color:#8aa0b6;font-size:14px;pointer-events:none;padding:0 20px}
+#lvpad{position:absolute;inset:0;touch-action:none}
+.ltop{position:absolute;left:0;right:0;top:0;display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:calc(env(safe-area-inset-top) + 6px) calc(env(safe-area-inset-right) + 8px) 6px calc(env(safe-area-inset-left) + 8px);background:linear-gradient(#000c,#0000);z-index:5}
+.ltop .hb{background:#0b0f14cc}
+#mrctl{display:none;align-items:center;gap:6px;color:#cfe0f0;font-size:12.5px}#lvs.mr #mrctl{display:flex}
+#mrop{width:90px;accent-color:#ff9f1a}
+#lvmsg{position:absolute;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom) + 170px);text-align:center;font-size:12.5px;color:#ffd58a;text-shadow:0 1px 3px #000;pointer-events:none;z-index:4}
+#joy2{position:absolute;left:calc(env(safe-area-inset-left) + 22px);bottom:calc(env(safe-area-inset-bottom) + 26px);width:128px;height:128px;border-radius:50%;background:#16212dcc;border:2px solid #2b3f57;touch-action:none;z-index:4}
+#joy2 i{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;background:#33506f;border:2px solid #5f87b0}
+#joy2 small{position:absolute;left:0;right:0;top:-18px;text-align:center;color:#cfe0f0;font-size:11px;text-shadow:0 1px 3px #000}
+#arc2{position:absolute;right:calc(env(safe-area-inset-right) + 22px);bottom:calc(env(safe-area-inset-bottom) + 26px);width:128px;height:128px;border-radius:50%;border:3px solid #ffb347;background:radial-gradient(circle at 50% 35%,#ff9a1f,#c75a00);color:#1a0d00;font-weight:900;font-size:19px;letter-spacing:.06em;touch-action:none;z-index:4}
+#arc2 small{display:block;font-size:11px;font-weight:700;letter-spacing:0;opacity:.8}
+@media (max-height:430px){#joy2,#arc2{width:96px;height:96px;bottom:calc(env(safe-area-inset-bottom) + 14px)}#lvmsg{bottom:calc(env(safe-area-inset-bottom) + 118px)}.lvWrap{max-height:30vh}}
+</style>
+</head>
+<body>
+
+<section id="pair">
+  <div class="card">
+    <h1>📱 Phone controller</h1>
+    <p>Controls the welding simulator running on your PC or VR headset. On the simulator, open <b>📱 Phone</b> and type the 6-character code it shows.</p>
+    <input id="code" maxlength="6" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" inputmode="text" placeholder="······" aria-label="Pairing code">
+    <button id="go">Connect</button>
+    <div id="pmsg"></div>
+    <div class="tiny">Both devices need internet. Pair <b>before</b> putting on the headset. Landscape works best.</div>
+  </div>
+</section>
+
+<section id="ctl" class="hidden">
+  <div id="pad"><div id="padhint"><b>Drag to aim the electrode</b>two fingers = look around</div></div>
+  <div id="top">
+    <span id="net" class="chip">…</span>
+    <div id="live"><span class="chip" id="l-status">—</span><span class="chip" id="l-amps"></span><span class="chip" id="l-arc"></span><span class="chip" id="l-cov"></span></div>
+    <button id="homebtn" data-home>⌂ Options</button><button id="menubtn">☰ Menu</button>
+  </div>
+    <div id="rot">↻ rotate your phone sideways for more room</div>
+  <div id="joy" class="joyc"><small>WALK</small><i></i></div>
+  <button id="arc" class="arcb">ARC<small>hold to weld</small></button>
+  <div id="bar">
+    <button class="mb" data-a="helmet" id="b-helmet"><b>🪖</b>Helmet</button>
+    <button class="mb" data-a="tool" data-g="weld"><b>⚡</b>Weld</button>
+    <button class="mb" data-a="tool" data-g="hammer"><b>🔨</b>Chip</button>
+    <button class="mb" data-a="tool" data-g="brush"><b>🧹</b>Brush</button>
+    <button class="mb" data-a="tool" data-g="grind"><b>⚙️</b>Grind</button>
+    <button class="mb" data-a="tool" data-g="cut"><b>✂️</b>Cut</button>
+    <button class="mb" data-a="newRod"><b>🔄</b>New rod</button>
+    <button class="mb" data-a="finish"><b>✅</b>Finish</button>
+    <button class="mb" data-a="inspect"><b>🔍</b>Inspect</button>
+    <button class="mb" data-a="amps" data-g="-5"><b>−</b>Amps</button>
+    <button class="mb" data-a="amps" data-g="5"><b>+</b>Amps</button>
+  </div>
+
+  <div id="menu" class="hidden">
+    <div class="sheet">
+      <h3>Controller menu <button id="x">Close ✕</button></h3>
+      <h4>Machine &amp; view</h4>
+      <div class="grid">
+        <button class="btn" data-a="power">⏻ Machine on/off</button>
+        <button class="btn" data-a="guide">🎯 Guide on/off</button>
+        <button class="btn" data-a="crouch">🧍 Crouch / stand</button>
+        <button class="btn" data-a="focus">🎥 Focus on weld</button>
+        <button class="btn" data-a="positioner">🔁 Positioner</button>
+        <button class="btn" data-a="newCoupon">🧱 New coupon</button>
+        <button class="btn" data-a="dash">📊 Dashboard</button>
+        <button class="btn" data-a="techToggle">📐 Technique panel</button>
+      </div>
+      <h4>Hold to adjust</h4>
+      <div class="grid">
+        <button class="btn" data-h="x:-1">◀ Turn coupon</button>
+        <button class="btn" data-h="x:1">Turn coupon ▶</button>
+        <button class="btn" data-h="y:-1">Arc length −</button>
+        <button class="btn" data-h="y:1">Arc length +</button>
+      </div>
+      <h4>Touch pad</h4>
+      <div class="row"><label>Aim sensitivity <span id="sv"></span></label><input type="range" id="sens" min="0.5" max="3" step="0.1"></div>
+      <div class="row"><label>Look sensitivity</label><input type="range" id="lsens" min="0.5" max="3" step="0.1"></div>
+      <div class="row"><label>Vibrate on arc</label><input type="checkbox" id="vib"></div>
+      <h4>Connection</h4>
+      <div class="grid"><button class="btn" id="leave">Disconnect &amp; change code</button></div>
+    </div>
+  </div>
+
+</section>
+
+
+<section id="opts" class="scr hidden">
+  <h2>Choose how to use your phone</h2>
+  <p class="sub">Connected to the welding simulator. You can switch any time with <b>⌂ Options</b>.</p>
+  <button class="ocard" data-go="1"><i>🎮</i><div><b>Option 1 · Controller</b><span>Touch pad aim, ARC trigger, walk joystick and all tool buttons.</span></div></button>
+  <button class="ocard" data-go="2"><i>🧑‍🏫</i><div><b>Option 2 · Teacher remote</b><span>Set up coupon, pass and electrode, guided steps, accept or decline Mother Server trainees, gyro camera, hide panels.</span></div></button>
+  <button class="ocard" data-go="3"><i>🕶️</i><div><b>Option 3 · Live view + Mixed reality</b><span>Live 3D view from the simulator. Move the phone to look around, overlay it on your camera, walk and weld from the screen.</span></div></button>
+  <button id="oleave">Disconnect &amp; change code</button>
+</section>
+
+<section id="tch" class="scr hidden">
+  <div class="thead"><button class="hb" data-home>⌂ Options</button><div class="tlive" id="t-live"><span class="chip" id="t-net"></span><span class="chip" id="t-st"></span></div><button class="hb phb" id="t-hide">👁 PANELS</button></div>
+  <div class="lvWrap sm" id="t-lv"><img class="lvImg" alt=""><div class="lvWait">Waiting for the live view from the simulator…</div><button class="lvTog hb" id="t-lvt">Live view ✓</button></div>
+  <div class="ttabs" id="ttabs"><button data-p="0" class="on">RUN</button><button data-p="1">SETUP</button><button data-p="2">GUIDE</button><button data-p="3">CLASS</button><button data-p="4">LOOK</button></div>
+  <div id="tbody">
+    <div class="tp on" id="tp0">
+      <h4>Machine &amp; operator</h4>
+      <div class="tg">
+        <button class="tb" data-tc="helmet">🪖 Helmet</button><button class="tb" data-tc="power">⏻ Machine</button><button class="tb" data-tc="guide">🎯 Guide</button>
+        <button class="tb" data-tc="crouch">🧍 Crouch</button><button class="tb" data-tc="focus">🎥 Focus weld</button><button class="tb" data-tc="positioner">🔁 Positioner</button>
+        <button class="tb" data-tc="techToggle">📐 Technique</button><button class="tb" data-tc="dash">📊 Dashboard</button><button class="tb" data-tc="level">🏷️ Quality level</button>
+      </div>
+      <h4>Pass</h4>
+      <div class="tg">
+        <button class="tb" data-tc="newRod">🔄 New rod</button><button class="tb" data-tc="finish">✅ Finish pass</button><button class="tb" data-tc="inspect">🔍 Inspect</button><button class="tb" data-tc="newCoupon">🧱 New coupon</button>
+      </div>
+      <h4>Inspection decision</h4>
+      <div class="tg">
+        <button class="tb ok" data-tc="vt" data-v="accept">Accept</button><button class="tb rp" data-tc="vt" data-v="repair">Repair</button><button class="tb nc" data-tc="vt" data-v="ncr">NCR</button><button class="tb" data-tc="vt" data-v="back">Back</button>
+      </div>
+      <button id="arcT" class="arcb">ARC · hold to weld</button>
+    </div>
+    <div class="tp" id="tp1">
+      <h4>Coupon &amp; position</h4>
+      <div class="tg" id="cpl"><button class="tb" data-tc="coupon" data-v="plate:1G">Plate 1G</button><button class="tb" data-tc="coupon" data-v="plate:2G">Plate 2G</button><button class="tb" data-tc="coupon" data-v="plate:3G">Plate 3G</button><button class="tb" data-tc="coupon" data-v="plate:4G">Plate 4G</button>
+        <button class="tb" data-tc="coupon" data-v="pipe:1G">Pipe 1G</button><button class="tb" data-tc="coupon" data-v="pipe:2G">Pipe 2G</button><button class="tb" data-tc="coupon" data-v="pipe:5G">Pipe 5G</button><button class="tb" data-tc="coupon" data-v="pipe:6G">Pipe 6G</button></div>
+      <h4>Pass (WPS sequence)</h4>
+      <div class="tg"><button class="tb" data-tc="pass" data-v="root">1 · Root</button><button class="tb" data-tc="pass" data-v="hot">2 · Hot</button><button class="tb" data-tc="pass" data-v="fill">3 · Fill</button><button class="tb" data-tc="pass" data-v="cap">4 · Cap</button></div>
+      <h4>Electrode</h4>
+      <div class="tg"><button class="tb" data-tc="elec" data-v="E6010">E6010</button><button class="tb" data-tc="elec" data-v="E6011">E6011</button><button class="tb" data-tc="elec" data-v="E7018">E7018</button></div>
+      <h4>Diameter</h4>
+      <div class="tg"><button class="tb" data-tc="dia" data-v="2.5">2.5 mm</button><button class="tb" data-tc="dia" data-v="3.2">3.2 mm</button><button class="tb" data-tc="dia" data-v="4.0">4.0 mm</button></div>
+      <h4>Weave</h4>
+      <div class="tg"><button class="tb" data-tc="weave" data-v="0">Stringer</button><button class="tb" data-tc="weave" data-v="1">Narrow</button><button class="tb" data-tc="weave" data-v="2">Medium</button><button class="tb" data-tc="weave" data-v="3">Wide</button></div>
+      <h4>Tool</h4>
+      <div class="tg"><button class="tb" data-tc="tool" data-v="weld">⚡ Weld</button><button class="tb" data-tc="tool" data-v="hammer">🔨 Chip</button><button class="tb" data-tc="tool" data-v="brush">🧹 Brush</button><button class="tb" data-tc="tool" data-v="grind">⚙️ Grind</button><button class="tb" data-tc="tool" data-v="cut">✂️ Cut</button><button class="tb" data-tc="tool" data-v="hand">✋ Hand</button></div>
+      <h4>Current</h4>
+      <div class="row"><button class="tb" id="aMin" style="flex:0 0 52px">−5</button><input type="range" id="aSl" min="60" max="300" step="5" value="90"><button class="tb" id="aPlus" style="flex:0 0 52px">+5</button><b id="aVal" style="min-width:52px;text-align:right">90 A</b></div>
+    </div>
+    <div class="tp" id="tp2">
+      <h4>Guided practice</h4>
+      <ol id="gsteps"></ol>
+      <div id="ghint">—</div>
+      <button class="tb go" id="gdo" style="width:100%;padding:14px">Do this step for me</button>
+      <p class="empty">Each step is checked automatically from what happens in the simulator. Tap the button to do the suggested step, or do it yourself on the Run and Setup tabs.</p>
+    </div>
+    <div class="tp" id="tp3">
+      <h4>Entry requests</h4>
+      <div id="cpend"><div class="empty">No trainee is waiting to join.</div></div>
+      <h4>Stations on the Mother Server</h4>
+      <div id="cstn"><div class="empty">Nobody has joined yet. Trainees appear here only after you accept them.</div></div>
+    </div>
+    <div class="tp" id="tp4">
+      <h4>Look around with the phone</h4>
+      <div class="tg"><button class="tb" id="gOn">🎯 GYRO: OFF</button><button class="tb" id="gCal">⌖ Calibrate</button><button class="tb" id="gRst">↺ Reset view</button></div>
+      <div id="gMsg"></div>
+      <div class="row"><label>Sensitivity <b id="gSv">1.0x</b></label><input type="range" id="gS" min="0.3" max="3" step="0.1" value="1"></div>
+      <div class="row"><label>Zoom speed <b id="gZv">1.0x</b></label><input type="range" id="gZ" min="0.3" max="3" step="0.1" value="1"></div>
+      <div class="row"><label>Invert left / right</label><input type="checkbox" id="gIH"></div>
+      <div class="row"><label>Invert up / down</label><input type="checkbox" id="gIV"></div>
+      <h4>Camera view on the simulator</h4>
+      <div class="tg"><button class="tb" data-tc="view" data-v="free">First person</button><button class="tb" data-tc="view" data-v="orbit">360° orbit</button><button class="tb" data-tc="view" data-v="welder">Welder view</button></div>
+      <h4>Touch pad (works without a gyro)</h4>
+      <div id="gPad">1 finger = look · 2 fingers = pinch to zoom</div>
+      <div class="tg" style="margin-top:8px"><button class="tb" id="zIn">🔍＋ Zoom in</button><button class="tb" id="zOut">🔍－ Zoom out</button></div>
+      <div id="gVals"></div>
+    </div>
+  </div>
+</section>
+
+<section id="lvs" class="scr hidden">
+  <video id="mrvid" playsinline muted autoplay></video>
+  <img id="lvbig" class="lvImg" alt="">
+  <div id="lvwait">Waiting for the live view from the simulator…<br><small>Sign in on the simulator and keep its tab open.</small></div>
+  <div id="lvpad"></div>
+  <div class="ltop">
+    <button class="hb" data-home>⌂ Options</button>
+    <button class="hb" id="lGy">🎯 Gyro: off</button><button class="hb" id="lCal">⌖</button>
+    <button class="hb" id="lMr">🕶️ Mixed reality</button>
+    <span id="mrctl"><input type="range" id="mrop" min="0.2" max="1" step="0.05" value="0.85" aria-label="Overlay opacity"><button class="hb" id="mrbl">Hologram</button></span>
+    <span class="chip" id="l3net"></span>
+  </div>
+  <div id="lvmsg"></div>
+  <div id="joy2" class="joyc"><small>WALK</small><i></i></div>
+  <button id="arc2" class="arcb">ARC<small>hold to weld</small></button>
+</section>
+
+<div id="toast"></div>
+<div id="lost" class="hidden"><div class="spin"></div><div id="lostmsg">Reconnecting…</div><button class="btn" id="lostleave">Change code</button></div>
+
+<script>
+(function () {
+'use strict';
+var $ = function (s) { return document.querySelector(s); };
+var Q = new URLSearchParams(location.search);
+var TRANSPORT = Q.get('transport') === 'bc' ? 'bc' : 'peer';
+var PEER_URLS = ['https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js', 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js'];
+var ICE = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' },
+  { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' }];
+var ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) {} return null; }
+
+/* ============================ transport ============================ */
+var link = null, wantCode = null, lastRx = 0, retryT = 0, connecting = false, gen = 0, peerLoad = null;
+function loadPeer() {
+  if (window.Peer) return Promise.resolve();
+  if (peerLoad) return peerLoad;
+  peerLoad = new Promise(function (res, rej) {
+    var i = 0;
+    (function next() {
+      if (i >= PEER_URLS.length) { peerLoad = null; return rej(new Error('Could not load the PeerJS library — check your internet connection')); }
+      var s = document.createElement('script'); s.src = PEER_URLS[i++];
+      s.onload = function () { window.Peer ? res() : next(); }; s.onerror = function () { s.remove(); next(); };
+      document.head.appendChild(s);
+    })();
+  });
+  return peerLoad;
+}
+function openLink(code, hooks) {
+  // hooks: open(), msg(m), close(why), fail(text, fatal)
+  var my = ++gen, closed = false, L = { send: function () {}, close: function () {} };
+  function alive() { return my === gen && !closed; }
+  function done(why) { if (closed) return; closed = true; hooks.close(why); }
+  if (TRANSPORT === 'bc') {
+    var ch = new BroadcastChannel('wsim-' + code), hi = 0, opened = false, myId = window.__wsimBcId = Math.random().toString(36).slice(2);   // (test transport only)
+    L.send = function (m) { try { ch.postMessage({ from: 'ctl', id: myId, m: m }); } catch (e) {} };
+    L.close = function () { clearInterval(hi); try { ch.close(); } catch (e) {} closed = true; };
+    ch.onmessage = function (e) {
+      if (!alive() || !e.data || e.data.from !== 'host' || (e.data.to && e.data.to !== myId)) return;
+      if (e.data.m && e.data.m.t === 'hi') { clearInterval(hi); if (!opened) { opened = true; hooks.open(); } } else hooks.msg(e.data.m);
+    };
+    var tries = 0; hi = setInterval(function () { if (!alive()) return clearInterval(hi); if (++tries > 6) { clearInterval(hi); hooks.fail('No simulator found for that code. Is its 📱 Phone card open?', false); done('nohost'); } else L.send({ t: 'hello' }); }, 600);
+    L.send({ t: 'hello' });
+    return L;
+  }
+  loadPeer().then(function () {
+    if (!alive()) return;
+    var peer = new window.Peer(undefined, { debug: 0, config: { iceServers: ICE } }), conn = null, to = setTimeout(function () { if (alive()) { hooks.fail('Timed out reaching the simulator. Check both devices are online.', false); L.close(); done('timeout'); } }, 15000);
+    L.close = function () { clearTimeout(to); closed = true; try { conn && conn.close(); } catch (e) {} try { peer.destroy(); } catch (e) {} };
+    peer.on('error', function (err) {
+      if (!alive()) return; clearTimeout(to);
+      var t = err && err.type;
+      hooks.fail(t === 'peer-unavailable' ? 'Code not found. On the simulator open 📱 Phone and check the code.' : t === 'network' || t === 'server-error' || t === 'socket-error' || t === 'socket-closed' ? 'Cannot reach the pairing server (internet?).' : 'Connection problem: ' + (t || err), false);
+      L.close(); done('error');
+    });
+    peer.on('open', function () {
+      if (!alive()) return;
+      conn = peer.connect('wsim-' + code, { reliable: true, serialization: 'json' });
+      L.send = function (m) { try { conn.open && conn.send(m); } catch (e) {} };
+      conn.on('open', function () { if (!alive()) return; clearTimeout(to); hooks.open(); });
+      conn.on('data', function (d) { if (alive()) hooks.msg(d); });
+      conn.on('close', function () { if (alive()) { L.close(); done('closed'); } });
+      conn.on('error', function () { if (alive()) { L.close(); done('error'); } });
+    });
+  }, function (e) { if (alive()) { hooks.fail(e.message, false); done('lib'); } });
+  return L;
+}
+
+/* ============================ session ============================ */
+var S = { up: false, rtt: 0, st: {} };
+function send(m) { if (link && S.up) link.send(m); }
+function setMsg(t, cls) { var e = $('#pmsg'); e.textContent = t || ''; e.className = cls || ''; }
+function connect(code, silent) {
+  if (connecting && !silent) return;
+  wantCode = code; connecting = true; S.up = false;
+  if (link) { try { link.close(); } catch (e) {} }
+  if (!silent) { setMsg('Connecting…'); $('#go').disabled = true; }
+  link = openLink(code, {
+    open: function () { connecting = false; S.up = true; lastRx = performance.now(); ls('wsim.code', code); showCtl(true); setMsg(''); $('#go').disabled = false; send({ t: 'hello', ua: navigator.userAgent.slice(0, 60) }); },
+    msg: onMsg,
+    fail: function (t) { if (!ctlShown()) { setMsg(t, 'err'); $('#go').disabled = false; } else $('#lostmsg').textContent = t; },
+    close: function () { connecting = false; var was = S.up; S.up = false; releaseAll(); if (ctlShown()) scheduleRetry(); else { $('#go').disabled = false; if (was) setMsg('Disconnected.', 'err'); } }
+  });
+}
+function scheduleRetry() {
+  $('#lost').classList.remove('hidden'); $('#lostmsg').textContent = 'Reconnecting…';
+  clearTimeout(retryT); retryT = setTimeout(function () { if (wantCode && !S.up) connect(wantCode, true); }, 2000);
+}
+var inApp = false, mode = 0, SCR = ['opts', 'ctl', 'tch', 'lvs'];
+function ctlShown() { return inApp; }
+function go(n) {
+  mode = n; releaseAll(); if (n !== 3) mrStop();
+  SCR.forEach(function (id, i) { $('#' + id).classList.toggle('hidden', i !== n); });
+  $('#menu').classList.add('hidden');
+  if (n < 2) gStop(true);
+  ls('wsim.mode', n); lvSync(); phSync();
+}
+function showCtl(on) {
+  $('#pair').classList.toggle('hidden', on); $('#lost').classList.add('hidden');
+  if (on) {
+    if (!inApp) { inApp = true; go(0); }
+    wakeLock(); try { if (document.documentElement.requestFullscreen && !document.fullscreenElement) document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(function () {}); } catch (e) {}
+  } else { inApp = false; SCR.forEach(function (id) { $('#' + id).classList.add('hidden'); }); gStop(true); mrStop(); }
+}
+function leave() {
+  wantCode = null; clearTimeout(retryT); S.up = false; gen++;
+  if (link) { try { link.send({ t: 'bye' }); link.close(); } catch (e) {} } link = null; releaseAll();
+  $('#menu').classList.add('hidden'); showCtl(false); setMsg('');
+  try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
+}
+setInterval(function () {
+  if (!S.up) return;
+  send({ t: 'ping', ts: Date.now() });
+  if (performance.now() - lastRx > 5000) { S.up = false; releaseAll(); try { link.close(); } catch (e) {} scheduleRetry(); }
+}, 1000);
+var wl = null; function wakeLock() { try { if (navigator.wakeLock && !wl) navigator.wakeLock.request('screen').then(function (l) { wl = l; l.addEventListener('release', function () { wl = null; }); }).catch(function () {}); } catch (e) {} }
+document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { wakeLock(); if (wantCode && ctlShown() && !S.up) connect(wantCode, true); } });
+
+/* ============================ inbound ============================ */
+var toastT = 0;
+function toast(t, k) { var e = $('#toast'); e.textContent = t; e.className = 'on ' + (k || ''); clearTimeout(toastT); toastT = setTimeout(function () { e.className = ''; }, 3200); }
+var lastArc = false;
+function onMsg(m) {
+  if (!m) return; lastRx = performance.now();
+  if (m.t === 'pong') { S.rtt = Date.now() - m.ts; var cl = 'chip ' + (S.rtt < 120 ? 'ok' : S.rtt < 300 ? 'warn' : 'bad'); ['#net', '#t-net', '#l3net'].forEach(function (q) { var n = $(q); n.textContent = '● ' + S.rtt + ' ms'; n.className = cl; }); }
+  else if (m.t === 'state') renderState(m);
+  else if (m.t === 'toast') toast(m.text, m.kind);
+  else if (m.t === 'ts') applyT(m);
+  else if (m.t === 'fr') onFrame(m.d);
+  else if (m.t === 'kick') { toast('Another controller took over', 'warn'); leave(); }
+}
+function renderState(s) {
+  S.st = s; $('#lost').classList.add('hidden');
+  var st = $('#l-status'); st.textContent = s.status || '—'; st.className = 'chip' + (s.arc ? ' warn' : '');
+  var t2 = $('#t-st'); t2.textContent = (s.status || '—') + ' · ' + (s.amps || 0) + ' A'; t2.className = 'chip' + (s.arc ? ' warn' : '');
+  $('#l-amps').textContent = (s.amps || 0) + ' A' + (s.volts ? ' · ' + s.volts + ' V' : '');
+  $('#l-arc').textContent = s.arclen ? 'arc ' + s.arclen : '';
+  $('#l-cov').textContent = s.cov ? s.cov + (s.groove ? ' · ' + s.groove : '') : '';
+  $('#b-helmet').classList.toggle('on', !!s.helmet);
+  document.querySelectorAll('.mb[data-a=tool]').forEach(function (b) { b.classList.toggle('on', s.tool === b.dataset.g); });
+  if (s.arc && !lastArc && vibOn()) try { navigator.vibrate(18); } catch (e) {}
+  lastArc = !!s.arc;
+  if (s.vr && !S.vrHint) { S.vrHint = true; toast('VR headset detected — aim comes from the headset controller; this phone gives you ARC, walk and buttons', 'ok'); }
+  if (s.phase && s.phase !== 'booth') { $('#padhint').firstElementChild.textContent = 'Sign in on the simulator first'; $('#padhint').style.opacity = 1; }
+}
+function vibOn() { return $('#vib').checked && navigator.vibrate; }
+
+/* ============================ touch pad ============================ */
+var pad = $('#pad'), P = new Map(), accAim = { x: 0, y: 0 }, accLook = { x: 0, y: 0 }, sens = parseFloat(ls('wsim.sens') || '1.4'), lsens = parseFloat(ls('wsim.lsens') || '1.4');
+var hintT = 0;
+function dots() { pad.querySelectorAll('.dot').forEach(function (d) { if (!P.has(+d.dataset.id)) d.remove(); }); P.forEach(function (p, id) { var d = pad.querySelector('.dot[data-id="' + id + '"]'); if (!d) { d = document.createElement('div'); d.className = 'dot'; d.dataset.id = id; pad.appendChild(d); } d.style.left = p.x + 'px'; d.style.top = p.y + 'px'; }); }
+pad.addEventListener('pointerdown', function (e) {
+  e.preventDefault(); try { pad.setPointerCapture(e.pointerId); } catch (x) {}
+  P.set(e.pointerId, { x: e.clientX, y: e.clientY }); $('#padhint').style.opacity = 0; clearTimeout(hintT); dots();
+});
+pad.addEventListener('pointermove', function (e) {
+  var p = P.get(e.pointerId); if (!p) return; e.preventDefault();
+  var dx = e.clientX - p.x, dy = e.clientY - p.y, W = Math.max(300, innerWidth);
+  if (P.size === 1) { accAim.x += dx / W * sens; accAim.y += dy / W * sens; }
+  else if (P.size >= 2) { accLook.x += dx / P.size / W; accLook.y += dy / P.size / W; }
+  p.x = e.clientX; p.y = e.clientY; dots();
+});
+function padUp(e) { P.delete(e.pointerId); dots(); if (!P.size) hintT = setTimeout(function () {}, 0); }
+pad.addEventListener('pointerup', padUp); pad.addEventListener('pointercancel', padUp); pad.addEventListener('lostpointercapture', padUp);
+(function frame() {
+  if (S.up) {
+    if (accAim.x || accAim.y) { send({ t: 'aim', dx: +accAim.x.toFixed(5), dy: +accAim.y.toFixed(5) }); accAim.x = accAim.y = 0; }
+    if (accLook.x || accLook.y) { send({ t: 'look', dx: +(accLook.x * lsens).toFixed(5), dy: +(accLook.y * lsens).toFixed(5) }); accLook.x = accLook.y = 0; }
+  }
+  requestAnimationFrame(frame);
+})();
+
+/* ============================ ARC button + walk joystick (controller, teacher run tab and live view each have one) ============================ */
+var arcT = 0;
+function arcSet(v) { document.querySelectorAll('.arcb').forEach(function (b) { b.classList.toggle('on', !!v); }); send({ t: 'arc', v: v ? 1 : 0 }); clearInterval(arcT); if (v) arcT = setInterval(function () { send({ t: 'arc', v: 1 }); }, 400); }
+function bindArc(arc) {
+  var pid = -1;
+  arc.addEventListener('pointerdown', function (e) { e.preventDefault(); if (pid >= 0) return; pid = e.pointerId; try { arc.setPointerCapture(e.pointerId); } catch (x) {} arcSet(1); });
+  function up(e) { if (e.pointerId !== pid) return; pid = -1; arcSet(0); }
+  arc.addEventListener('pointerup', up); arc.addEventListener('pointercancel', up); arc.addEventListener('lostpointercapture', up);
+  arc.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  arc._reset = function () { pid = -1; };
+}
+var jx = 0, jy = 0, jsent = '', joys = [];
+function bindJoy(joy) {
+  var knob = joy.querySelector('i'), jP = -1;
+  function mv(e) { var r = joy.getBoundingClientRect(), R = r.width / 2, dx = e.clientX - (r.left + R), dy = e.clientY - (r.top + R), d = Math.hypot(dx, dy), k = d > R ? R / d : 1; dx *= k; dy *= k; knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; jx = dx / R; jy = dy / R; if (Math.hypot(jx, jy) < 0.15) { jx = jy = 0; } }
+  joy.addEventListener('pointerdown', function (e) { e.preventDefault(); jP = e.pointerId; try { joy.setPointerCapture(e.pointerId); } catch (x) {} mv(e); });
+  joy.addEventListener('pointermove', function (e) { if (e.pointerId === jP) { e.preventDefault(); mv(e); } });
+  function up(e) { if (e.pointerId !== jP) return; jP = -1; jx = jy = 0; knob.style.transform = ''; }
+  joy.addEventListener('pointerup', up); joy.addEventListener('pointercancel', up); joy.addEventListener('lostpointercapture', up);
+  joy._reset = function () { jP = -1; knob.style.transform = ''; };
+  joys.push(joy);
+}
+document.querySelectorAll('.arcb').forEach(bindArc); document.querySelectorAll('.joyc').forEach(bindJoy);
+setInterval(function () { var s = jx.toFixed(2) + ',' + jy.toFixed(2); if (s !== jsent || (jx || jy)) { jsent = s; send({ t: 'move', x: +jx.toFixed(2), y: +jy.toFixed(2) }); } }, 60);
+
+/* ============================ buttons & menu ============================ */
+function act(a, arg) { send({ t: 'act', a: a, arg: arg === undefined ? null : arg }); try { if (navigator.vibrate) navigator.vibrate(8); } catch (e) {} }
+$('#bar').addEventListener('click', function (e) { var b = e.target.closest('[data-a]'); if (b) act(b.dataset.a, b.dataset.g); });
+$('#menu').addEventListener('click', function (e) { var b = e.target.closest('[data-a]'); if (b) act(b.dataset.a, b.dataset.g); if (e.target.id === 'menu') $('#menu').classList.add('hidden'); });
+$('#menubtn').addEventListener('click', function () { $('#menu').classList.remove('hidden'); });
+$('#x').addEventListener('click', function () { $('#menu').classList.add('hidden'); });
+var st2 = { x: 0, y: 0 }, heldBtn = {};
+document.querySelectorAll('[data-h]').forEach(function (b) {
+  var ax = b.dataset.h.split(':'), axis = ax[0], val = +ax[1];
+  b.addEventListener('pointerdown', function (e) { e.preventDefault(); try { b.setPointerCapture(e.pointerId); } catch (x) {} st2[axis] = val; b.classList.add('held'); heldBtn[b.dataset.h] = b; send({ t: 'stick2', x: st2.x, y: st2.y }); });
+  function up() { if (!heldBtn[b.dataset.h]) return; delete heldBtn[b.dataset.h]; st2[axis] = 0; b.classList.remove('held'); send({ t: 'stick2', x: st2.x, y: st2.y }); }
+  b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('lostpointercapture', up);
+});
+setInterval(function () { if (st2.x || st2.y) send({ t: 'stick2', x: st2.x, y: st2.y }); }, 400);
+function releaseAll() { clearInterval(arcT); document.querySelectorAll('.arcb').forEach(function (b) { b.classList.remove('on'); if (b._reset) b._reset(); }); jx = jy = 0; joys.forEach(function (j) { j._reset(); }); try { G.ay = G.ap = G.pz = 0; G.zb = 0; } catch (e) {} st2.x = st2.y = 0; document.querySelectorAll('.held').forEach(function (b) { b.classList.remove('held'); }); heldBtn = {}; }
+var sensEl = $('#sens'), lsensEl = $('#lsens');
+sensEl.value = sens; lsensEl.value = lsens; $('#sv').textContent = sens.toFixed(1) + '×';
+sensEl.addEventListener('input', function () { sens = +sensEl.value; $('#sv').textContent = sens.toFixed(1) + '×'; ls('wsim.sens', sens); });
+lsensEl.addEventListener('input', function () { lsens = +lsensEl.value; ls('wsim.lsens', lsens); });
+$('#vib').checked = ls('wsim.vib') !== '0'; $('#vib').addEventListener('change', function () { ls('wsim.vib', this.checked ? '1' : '0'); });
+$('#leave').addEventListener('click', leave); $('#lostleave').addEventListener('click', leave);
+
+
+/* ============================ options screen ============================ */
+document.addEventListener('click', function (e) {
+  var h = e.target.closest && e.target.closest('[data-home]'); if (h) { go(0); return; }
+  var g = e.target.closest && e.target.closest('[data-go]'); if (g) { go(+g.dataset.go); if (navigator.vibrate) try { navigator.vibrate(8); } catch (x) {} }
+});
+$('#oleave').addEventListener('click', function () { leave(); });
+
+/* ============================ phone gyro (turn the phone = look around) ============================ */
+var D2R = Math.PI / 180, G = { on: 0, seen: 0, n: 0, ly: null, lp: 0, ay: 0, ap: 0, pz: 0, zb: 0, out: [0, 0, 0], al: null, be: null, ga: null, yaw: 0, pit: 0 };
+function gS() { return parseFloat($('#gS').value) || 1; } function gZ() { return parseFloat($('#gZ').value) || 1; }
+function gMsg(t, err) { $('#gMsg').textContent = t || ''; $('#gMsg').className = err ? 'err' : ''; $('#lvmsg').textContent = t || ''; }
+function gUI() {
+  $('#gOn').classList.toggle('on', !!G.on); $('#gOn').textContent = '🎯 GYRO: ' + (G.on ? 'ON' : 'OFF');
+  $('#lGy').classList.toggle('on', !!G.on); $('#lGy').textContent = '🎯 Gyro: ' + (G.on ? 'on' : 'off');
+}
+function secHint() { return window.isSecureContext === false ? ' This page is open over http: phones only give motion data on https. Host this controller page on an https site.' : ''; }
+function motionPerm() {
+  var D = window.DeviceOrientationEvent;
+  if (D && typeof D.requestPermission === 'function') return D.requestPermission().then(function (r) { if (r !== 'granted') throw new Error('Motion permission was denied. Allow it in the browser settings, or use the touch pad.'); });
+  return Promise.resolve();
+}
+function gOri(e) {
+  if (e.beta == null || e.gamma == null) return; G.seen = Date.now(); G.n++;
+  var a = (e.alpha || 0) * D2R, b = e.beta * D2R, g = e.gamma * D2R,
+    vx = -Math.sin(g) * Math.cos(a) - Math.cos(g) * Math.sin(b) * Math.sin(a), vy = -Math.sin(g) * Math.sin(a) + Math.cos(g) * Math.sin(b) * Math.cos(a), vz = -Math.cos(g) * Math.cos(b),
+    yaw = Math.atan2(vx, vy), pit = Math.asin(Math.max(-1, Math.min(1, vz)));      // direction the back of the phone points at
+  G.al = e.alpha || 0; G.be = e.beta; G.ga = e.gamma; G.yaw = yaw; G.pit = pit;
+  if (Math.abs(vz) < .85) {                                                       // pointing near straight up/down: the compass heading is unreliable
+    if (G.ly !== null) {
+      var dy = Math.atan2(Math.sin(yaw - G.ly), Math.cos(yaw - G.ly)), dp = pit - G.lp;
+      if (Math.abs(dy) >= .0015) { G.ay += -dy * gS() * ($('#gIH').checked ? -1 : 1); G.ly = yaw; }
+      if (Math.abs(dp) >= .0015) { G.ap += dp * gS() * ($('#gIV').checked ? -1 : 1); G.lp = pit; }
+    } else { G.ly = yaw; G.lp = pit; }
+  } else G.ly = null;
+}
+function gCal() { G.ly = null; G.ay = G.ap = 0; gMsg(G.on ? 'Calibrated: the current phone position is now neutral.' : 'Turn GYRO ON first, then calibrate.'); if (navigator.vibrate) try { navigator.vibrate(12); } catch (x) {} }
+function gStart() {
+  motionPerm().then(function () {
+    G.on = 1; G.seen = 0; G.n = 0; G.ly = null; window.addEventListener('deviceorientation', gOri); gUI(); gMsg('Gyro on. Hold the phone upright, then tap ⌖ calibrate.');
+    setTimeout(function () { if (G.on && !G.seen) { gStop(true); gMsg('No motion data received. The browser blocked the sensor or this phone has none — use the touch pad.' + secHint(), 1); } }, 2000);
+  }).catch(function (er) { G.on = 0; gUI(); gMsg(er.message || 'Gyro not available. Use the touch pad.', 1); });
+}
+function gStop(q) { G.on = 0; G.ay = G.ap = 0; window.removeEventListener('deviceorientation', gOri); gUI(); if (!q) gMsg('Gyro off. The touch pad still works.'); }
+function gToggle() { G.on ? gStop() : gStart(); }
+function gReset() { if (TS.view !== 'free') tc('orb', 'reset'); if (G.on) gCal(); else gMsg('Camera view reset.'); }
+$('#gOn').onclick = $('#lGy').onclick = gToggle; $('#gCal').onclick = $('#lCal').onclick = gCal; $('#gRst').onclick = gReset;
+$('#gS').oninput = function () { $('#gSv').textContent = gS().toFixed(1) + 'x'; }; $('#gZ').oninput = function () { $('#gZv').textContent = gZ().toFixed(1) + 'x'; };
+/* touch pads: 1 finger = look, 2 fingers = pinch zoom (Look tab pad and the full-screen live view) */
+function bindPad(el) {
+  var ptr = {}, last = null;
+  function ks() { return Object.keys(ptr); }
+  function dist() { var k = ks(), a = ptr[k[0]], b = ptr[k[1]]; return Math.hypot(a.x - b.x, a.y - b.y) || 1; }
+  el.addEventListener('pointerdown', function (e) { e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (x) {} ptr[e.pointerId] = { x: e.clientX, y: e.clientY }; el.classList.add('act'); last = ks().length > 1 ? dist() : null; });
+  el.addEventListener('pointermove', function (e) {
+    var p = ptr[e.pointerId]; if (!p) return; e.preventDefault(); var dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
+    if (ks().length === 1) { G.ay += -dx * .006 * gS() * ($('#gIH').checked ? -1 : 1); G.ap += -dy * .006 * gS() * ($('#gIV').checked ? -1 : 1); }
+    else { var d = dist(); if (last) G.pz += (last / d - 1) * gZ(); last = d; }
+  });
+  function up(e) { delete ptr[e.pointerId]; last = ks().length > 1 ? dist() : null; if (!ks().length) el.classList.remove('act'); }
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (n) { el.addEventListener(n, up); });
+}
+bindPad($('#gPad')); bindPad($('#lvpad'));
+[['zIn', -1], ['zOut', 1]].forEach(function (z) { var b = $('#' + z[0]); b.addEventListener('pointerdown', function (e) { e.preventDefault(); try { b.setPointerCapture(e.pointerId); } catch (x) {} G.zb = z[1]; }); ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (n) { b.addEventListener(n, function () { G.zb = 0; }); }); });
+setInterval(function () {                                                        // merge gyro + touch + zoom buttons into one stream (20 per second)
+  if (!S.up || (mode !== 2 && mode !== 3)) return;
+  var dt = G.ay, dp = G.ap, dz = G.pz + G.zb * .04 * gZ(); G.ay = G.ap = G.pz = 0;
+  if (Math.abs(dt) + Math.abs(dp) + Math.abs(dz) > 1e-5) { send({ t: 'gd', v: [+dt.toFixed(5), +dp.toFixed(5), +dz.toFixed(5)] }); G.out = [dt, dp, dz]; }
+  if (G.on && G.n && Date.now() - G.seen > 2500) gMsg('Motion data stopped. Check the browser motion permission.', 1);
+}, 50);
+setInterval(function () {
+  if (mode !== 2 || !$('#tp4').classList.contains('on')) return; var f = function (v) { return v == null ? '  -  ' : (v >= 0 ? '+' : '') + v.toFixed(1); };
+  $('#gVals').textContent = 'alpha ' + f(G.al) + '  beta ' + f(G.be) + '  gamma ' + f(G.ga) + '\nyaw ' + f(G.yaw / D2R) + '  pitch ' + f(G.pit / D2R) + '\nsent: turn ' + (G.out[0] / D2R).toFixed(2) + '  tilt ' + (G.out[1] / D2R).toFixed(2) + '  zoom ' + G.out[2].toFixed(3) + '\nsamples ' + G.n + (G.on ? '' : '  (gyro off)');
+}, 150);
+gUI();
+
+/* ============================ live 3D view (JPEG frames from the simulator) ============================ */
+var frT = 0, lvHide = ls('wsim.lvhide') === '1';
+function onFrame(d) {
+  if (typeof d !== 'string' || d.indexOf('data:image/jpeg;base64,') !== 0 || d.length > 600000) return; frT = Date.now();
+  document.querySelectorAll('.lvImg').forEach(function (i) { i.src = d; i.style.display = 'block'; });
+  document.querySelectorAll('.lvWait').forEach(function (w) { w.style.display = 'none'; }); $('#lvwait').style.display = 'none';
+}
+function lvOn() { return mode === 3 || (mode === 2 && !lvHide); }
+function lvSync() {
+  $('#t-lv').style.display = (mode === 2 && !lvHide) ? '' : 'none'; $('#t-lvt').textContent = 'Live view ' + (lvHide ? '✕' : '✓');
+  if (mode === 3) $('#lvwait').style.display = Date.now() - frT < 4000 ? 'none' : '';
+}
+$('#t-lvt').addEventListener('click', function () { lvHide = !lvHide; ls('wsim.lvhide', lvHide ? '1' : '0'); lvSync(); });
+setInterval(function () { if (!S.up || !lvOn()) return; send({ t: 'vw' }); if (frT && Date.now() - frT > 4000) { document.querySelectorAll('.lvImg').forEach(function (i) { i.style.display = 'none'; }); document.querySelectorAll('.lvWait').forEach(function (w) { w.style.display = 'flex'; }); $('#lvwait').style.display = ''; } }, 400);
+
+/* ---- mixed reality: the live view floats over the phone camera ---- */
+var mrS = null;
+function mrUI() { $('#lMr').classList.toggle('on', !!mrS); $('#lvs').classList.toggle('mr', !!mrS); }
+function mrStart() {
+  if (mrS) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { gMsg('Camera is not available here' + (window.isSecureContext === false ? ' — open this page over https.' : '.'), 1); return; }
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }, audio: false }).then(function (st) {
+    if (mode !== 3) { st.getTracks().forEach(function (t) { t.stop(); }); return; }
+    mrS = st; var v = $('#mrvid'); v.srcObject = st; try { var pr = v.play(); if (pr && pr.catch) pr.catch(function () {}); } catch (e) {} mrUI(); gMsg('Mixed reality on: the simulator is overlaid on your camera. Move the phone to look around.');
+    setTimeout(function () { if (mode === 3 && !G.on) gStart(); }, 100);
+  }).catch(function (e) { gMsg('Camera blocked: allow camera access for this page, then tap Mixed reality again.', 1); });
+}
+function mrStop() { if (mrS) { mrS.getTracks().forEach(function (t) { t.stop(); }); mrS = null; } var v = $('#mrvid'); if (v) v.srcObject = null; mrUI(); }
+$('#lMr').addEventListener('click', function () { mrS ? mrStop() : mrStart(); });
+$('#mrop').addEventListener('input', function () { $('#lvs').style.setProperty('--mro', this.value); });
+$('#mrbl').addEventListener('click', function () { var h = $('#lvs').classList.toggle('holo'); this.classList.toggle('on', h); });
+
+/* ============================ teacher remote ============================ */
+var TS = { booth: false, view: 'free', g: [0, ''], gs: [], pend: [], stn: [] };
+function tc(c, v) { send({ t: 'tc', c: c, v: v === undefined ? null : v }); try { if (navigator.vibrate) navigator.vibrate(8); } catch (e) {} }
+function pv(b) { var v = b.dataset.v; if (v === undefined) return undefined; if (b.dataset.tc === 'coupon') return v.split(':'); if (b.dataset.tc === 'weave') return +v; return v; }
+document.querySelectorAll('#tbody [data-tc]').forEach(function (b) { b.addEventListener('click', function () { tc(b.dataset.tc, pv(b)); }); });
+document.querySelectorAll('.phb').forEach(function (b) { b.addEventListener('click', function () { tc('hide', TS.hid ? 0 : 1); TS.hid = !TS.hid; phSync(); }); });
+function phSync() { document.querySelectorAll('.phb').forEach(function (b) { b.classList.toggle('on', !!TS.hid); b.innerHTML = '👁 PANELS' + (TS.hid ? ': HIDDEN' : ''); }); }
+$('#ttabs').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) tPane(+b.dataset.p); });
+function tPane(n) { document.querySelectorAll('#ttabs button').forEach(function (b) { b.classList.toggle('on', +b.dataset.p === n); }); for (var i = 0; i < 5; i++) $('#tp' + i).classList.toggle('on', i === n); }
+function esc(t) { return String(t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+var RC = {};
+function setH(el, h) { if (RC[el.id] !== h) { RC[el.id] = h; el.innerHTML = h; } }
+var NEXTP = { none: ['root'], root: ['hot'], hot: ['fill'], fill: ['fill', 'cap'], cap: [] };
+function isOn(b) {
+  var c = b.dataset.tc, v = b.dataset.v;
+  switch (c) {
+    case 'helmet': return !!TS.helmet; case 'power': return !!TS.power; case 'guide': return !!TS.guide; case 'crouch': return TS.crouch > 0; case 'positioner': return !!TS.posOn; case 'dash': return !!TS.dash;
+    case 'coupon': var a = v.split(':'); return TS.coupon === a[0] && TS.pos === a[1];
+    case 'pass': return TS.phase && TS.phase !== 'idle' && TS.sel === v;
+    case 'elec': return TS.elec === v; case 'dia': return TS.dia === v; case 'weave': return TS.weave === +v; case 'tool': return TS.tool === v; case 'view': return TS.view === v;
+  } return false;
+}
+function applyT(m) {
+  TS = m; renderT();
+}
+function renderT() {
+  var q = TS;
+  document.querySelectorAll('#tbody [data-tc]').forEach(function (b) {
+    b.classList.toggle('on', !!isOn(b));
+    if (b.dataset.tc === 'pass') { var nx = (NEXTP[q.last || 'none'] || []).indexOf(b.dataset.v) >= 0 && (!q.phase || q.phase === 'idle') && !q.done; b.classList.toggle('nx', nx); }
+    if (b.dataset.tc === 'level') b.textContent = '🏷️ Quality ' + (q.level || '');
+    if (b.dataset.tc === 'positioner') b.classList.toggle('on', !!q.posOn);
+    if (b.dataset.tc === 'vt') b.classList.toggle('go', q.phase === 'vt' && b.dataset.v !== 'back');
+  });
+  if (document.activeElement !== $('#aSl')) $('#aSl').value = q.amps || 90; $('#aVal').textContent = (q.amps || 0) + ' A';
+  var g = q.g || [0, ''], steps = q.gs || [];
+  setH($('#gsteps'), steps.map(function (n, i) { return '<li class="' + (i < g[0] ? 'dn' : i === g[0] ? 'cur' : '') + '">' + (i + 1) + '. ' + esc(n) + '</li>'; }).join(''));
+  setH($('#ghint'), esc(g[1] || ''));
+  $('#gdo').textContent = guideLabel();
+  setH($('#cpend'), q.pend && q.pend.length ? q.pend.map(function (r) { return '<div class="req"><span><b>' + esc(r[1]) + '</b> (' + esc(r[2]) + ') wants to join</span><button class="y" data-mc="approve" data-cid="' + esc(r[0]) + '">Accept</button><button data-mc="deny" data-cid="' + esc(r[0]) + '">Decline</button></div>'; }).join('') : '<div class="empty">No trainee is waiting to join.</div>');
+  setH($('#cstn'), q.stn && q.stn.length ? '<table class="stn"><tr><th>Station</th><th>Status</th><th>Pos</th><th>Pass</th><th>Fail</th><th></th></tr>' + q.stn.map(function (r) { return '<tr><td><b>' + esc(r[1]) + '</b></td><td>' + esc(r[2]) + '</td><td>' + esc(r[4]) + '</td><td>' + r[5] + '</td><td>' + r[6] + '</td><td>' + (r[3] ? '<button class="req-x" data-mc="deny" data-cid="' + esc(String(r[0]).replace(/^R-/, '')) + '">Remove</button>' : '') + '</td></tr>'; }).join('') + '</table>' : '<div class="empty">Nobody has joined yet. Trainees appear here only after you accept them.</div>');
+  phSync(); lvSync();
+}
+document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-mc]'); if (b) tc('mother', [b.dataset.mc, b.dataset.cid]); });
+function guideLabel() { var g = TS.g || [0, ''], i = g[0], p = TS.phase; if (!TS.booth) return 'Waiting for sign-in on the simulator'; if (i === 1) return 'Mount a plate 1G coupon'; if (i >= 2 && i <= 5) return p === 'idle' ? 'Select the ' + ['ROOT', 'HOT', 'FILL', 'CAP'][i - 2] + ' pass' : p === 'weld' ? 'Finish this pass' : p === 'clean' ? 'Inspect the pass' : p === 'vt' ? 'Accept the pass' : 'Do this step'; return i === 6 ? 'Mount a new coupon' : 'Do this step'; }
+$('#gdo').addEventListener('click', function () {
+  var g = TS.g || [0, ''], i = g[0], p = TS.phase; if (!TS.booth) return toast('Sign in on the simulator first', 'warn');
+  if (i === 1) tc('coupon', ['plate', '1G']);
+  else if (i >= 2 && i <= 5) { if (p === 'idle') tc('pass', ['root', 'hot', 'fill', 'cap'][i - 2]); else if (p === 'weld') tc('finish'); else if (p === 'clean') tc('inspect'); else if (p === 'vt') tc('vt', 'accept'); }
+  else if (i === 6) tc('newCoupon');
+});
+$('#aMin').addEventListener('click', function () { tc('ampsTo', Math.max(60, (TS.amps || 90) - 5)); }); $('#aPlus').addEventListener('click', function () { tc('ampsTo', Math.min(300, (TS.amps || 90) + 5)); });
+$('#aSl').addEventListener('change', function () { tc('ampsTo', +this.value); }); $('#aSl').addEventListener('input', function () { $('#aVal').textContent = this.value + ' A'; });
+
+/* ============================ pairing screen ============================ */
+var codeEl = $('#code');
+function cleanCode(s) { return (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6); }
+codeEl.addEventListener('input', function () { codeEl.value = cleanCode(codeEl.value); setMsg(''); $('#go').disabled = false; });
+codeEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') $('#go').click(); });
+$('#go').addEventListener('click', function () { var c = cleanCode(codeEl.value); if (c.length !== 6) { setMsg('Enter the 6-character code shown on the simulator.', 'err'); return; } connecting = false; connect(c); });
+['gesturestart', 'gesturechange', 'dblclick'].forEach(function (n) { document.addEventListener(n, function (e) { if (!e.target || e.target.id !== 'code') e.preventDefault(); }, { passive: false }); });
+document.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+var pre = cleanCode(Q.get('code') || ''), saved = cleanCode(ls('wsim.code') || '');
+codeEl.value = pre || saved;
+if (pre.length === 6) { setMsg('Connecting…'); connect(pre); }
+window.WSIM_REMOTE = { state: function () { return { up: S.up, rtt: S.rtt, st: S.st, ts: TS, mode: mode, gyro: G.on, mr: !!mrS, transport: TRANSPORT }; }, go: go };
+})();
+</script>
+</body>
+</html>
